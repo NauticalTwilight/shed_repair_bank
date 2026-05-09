@@ -362,20 +362,6 @@ else:
 st.progress(progress)
 st.markdown(f"### Payoff Progress: **{progress * 100:.1f}% complete**")
 
-# =============================
-# SPEND SUMMARY
-# =============================
-
-st.divider()
-st.header("💸 Spend Repair BANK Summary")
-
-st.markdown(f"""
-<div class="spend-card">
-    <h4>Group Spend Subtracted</h4>
-    <p style="font-size: 30px; font-weight: 800;">${total_spend:,.2f}</p>
-    <p>This amount is subtracted from both Money Earned and Total Repair Cost.</p>
-</div>
-""", unsafe_allow_html=True)
 
 # =============================
 # MILESTONES
@@ -515,6 +501,22 @@ else:
         individual_display["Earned"] = individual_display["Earned"].apply(lambda x: f"${x:,.2f}")
 
     st.dataframe(individual_display, use_container_width=True)
+
+# =============================
+# SPEND SUMMARY
+# =============================
+
+st.divider()
+st.header("💸 Spend Repair BANK Summary")
+
+st.markdown(f"""
+<div class="spend-card">
+    <h4>Group Spend Subtracted</h4>
+    <p style="font-size: 30px; font-weight: 800;">${total_spend:,.2f}</p>
+    <p>This amount is subtracted from both Money Earned and Total Repair Cost.</p>
+</div>
+""", unsafe_allow_html=True)
+
 
 # =============================
 # REFRESH
