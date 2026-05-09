@@ -23,11 +23,20 @@ HOURLY_RATE = 5
 
 GOOGLE_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ46p98flCzt2nVUELnpXG65xFFmi8Nd8ruu9NqTtenHaQFgUDzVktmXplAF9yPC7_SL37ZvV2_3XhL/pub?output=csv"
 
+# IMPORTANT:
+# Paste the published CSV link for your new Spend Repair BANK response tab here.
+# If this is blank, spend will be treated as $0.
+SPEND_GOOGLE_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1vvjyPtvnZAF9ybmWWmygV-aOVAfszmdPAIZ4xOVsT1s/edit?resourcekey=&gid=1126731422#gid=1126731422"
 NAME_COLUMN = "Name"
 HOURS_COLUMN = "Hours worked per kid"
 WORK_COLUMN = "Work Description:"
 DATE_COLUMN = "Date Completed"
 NOTES_COLUMN = "Parent Notes"
+
+SPEND_AMOUNT_COLUMN = "Spend Amount"
+SPEND_DATE_COLUMN = "Spend Date"
+SPEND_DESCRIPTION_COLUMN = "Spend Description"
+SPEND_NOTES_COLUMN = "Parent Notes"
 
 MILESTONES = [
     (50, "First $50 earned"),
@@ -101,6 +110,13 @@ st.markdown("""
     border-left: 6px solid #c0392b;
     margin-bottom: 10px;
 }
+.spend-card {
+    padding: 18px;
+    border-radius: 14px;
+    background-color: #fff8e8;
+    border-left: 6px solid #d68910;
+    margin-bottom: 10px;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -117,7 +133,60 @@ def load_data():
         st.write(e)
         return pd.DataFrame()
 
+
+@st.cache_data(ttl=10)
+def load_spend_data():
+    if not SPEND_GOOGLE_SHEET_CSV_URL:
+        return pd.DataFrame()
+
+    try:
+        return pd.read_csv(SPEND_GOOGLE_SHEET_CSV_URL)
+    except Exception as e:
+        st.warning("Could not load Spend Repair BANK CSV link. Spend is currently being treated as $0.")
+        st.write(e)
+        return pd.DataFrame()
+
+
+def clean_money_column(series):
+    return (
+        series
+        .astype(str)
+        .str.replace("$", "", regex=False)
+        .str.replace(",", "", regex=False)
+        .str.strip()
+    )
+
+
+def find_spend_amount_column(spend_df):
+    if spend_df.empty:
+        return None
+
+    spend_df.columns = spend_df.columns.str.strip()
+
+    if SPEND_AMOUNT_COLUMN in spend_df.columns:
+        return SPEND_AMOUNT_COLUMN
+
+    possible_columns = [
+        col for col in spend_df.columns
+        if "spend" in col.lower() and "amount" in col.lower()
+    ]
+
+    if possible_columns:
+        return possible_columns[0]
+
+    possible_amount_columns = [
+        col for col in spend_df.columns
+        if "amount" in col.lower() or "money" in col.lower() or "cost" in col.lower()
+    ]
+
+    if possible_amount_columns:
+        return possible_amount_columns[0]
+
+    return None
+
+
 df = load_data()
+spend_df = load_spend_data()
 
 # =============================
 # CLEAN + COLUMN DETECTION
@@ -160,7 +229,7 @@ if not df.empty:
             NOTES_COLUMN = possible_notes_columns[0]
 
 # =============================
-# CALCULATE
+# CALCULATE REPAIR EARNINGS
 # =============================
 
 if not df.empty:
@@ -174,7 +243,7 @@ if not df.empty:
     df["Earned"] = df["Hours"] * HOURLY_RATE
 
     total_hours = df["Hours"].sum()
-    total_earned = df["Earned"].sum()
+    raw_total_earned = df["Earned"].sum()
 
     individual_rows = []
 
@@ -195,12 +264,46 @@ if not df.empty:
 
 else:
     total_hours = 0
-    total_earned = 0
+    raw_total_earned = 0
     individual_df = pd.DataFrame()
 
-remaining_money = max(TOTAL_REPAIR_COST - total_earned, 0)
+# =============================
+# CALCULATE GROUP SPEND
+# =============================
+
+total_spend = 0.0
+
+if not spend_df.empty:
+    spend_df.columns = spend_df.columns.str.strip()
+
+    spend_amount_column = find_spend_amount_column(spend_df)
+
+    if spend_amount_column:
+        spend_df[spend_amount_column] = clean_money_column(spend_df[spend_amount_column])
+        spend_df[spend_amount_column] = pd.to_numeric(
+            spend_df[spend_amount_column],
+            errors="coerce"
+        ).fillna(0)
+
+        total_spend = float(spend_df[spend_amount_column].sum())
+    else:
+        st.warning("Spend form loaded, but I could not find a Spend Amount column.")
+        st.write(list(spend_df.columns))
+
+# =============================
+# APPLY SPEND RESET LOGIC
+# =============================
+
+total_earned = max(raw_total_earned - total_spend, 0)
+display_total_repair_cost = max(TOTAL_REPAIR_COST - total_spend, 0)
+
+remaining_money = max(display_total_repair_cost - total_earned, 0)
 remaining_hours = remaining_money / HOURLY_RATE if HOURLY_RATE else 0
-progress = min(total_earned / TOTAL_REPAIR_COST, 1)
+
+if display_total_repair_cost > 0:
+    progress = min(total_earned / display_total_repair_cost, 1)
+else:
+    progress = 1
 
 # =============================
 # HEADER
@@ -231,7 +334,7 @@ with col2:
     st.markdown(f"""
     <div class="bank-card">
         <h3>🏚️ Total Repair Cost</h3>
-        <div class="big-number">${TOTAL_REPAIR_COST:,.2f}</div>
+        <div class="big-number">${display_total_repair_cost:,.2f}</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -267,6 +370,21 @@ else:
 
 st.progress(progress)
 st.markdown(f"### Payoff Progress: **{progress * 100:.1f}% complete**")
+
+# =============================
+# SPEND SUMMARY
+# =============================
+
+st.divider()
+st.header("💸 Spend Repair BANK Summary")
+
+st.markdown(f"""
+<div class="spend-card">
+    <h4>Group Spend Subtracted</h4>
+    <p style="font-size: 30px; font-weight: 800;">${total_spend:,.2f}</p>
+    <p>This amount is subtracted from both Money Earned and Total Repair Cost.</p>
+</div>
+""", unsafe_allow_html=True)
 
 # =============================
 # MILESTONES
@@ -372,6 +490,23 @@ else:
         transaction_display["Earned"] = transaction_display["Earned"].apply(lambda x: f"${x:,.2f}")
 
     st.dataframe(transaction_display, use_container_width=True)
+
+# =============================
+# SPEND REPAIR BANK LOG
+# =============================
+
+st.divider()
+st.header("💸 Spend Repair BANK Log")
+
+if spend_df.empty:
+    st.info("No spend entries yet, or the Spend CSV URL has not been added.")
+else:
+    spend_display = spend_df.sort_index(ascending=False).copy()
+
+    if spend_amount_column and spend_amount_column in spend_display.columns:
+        spend_display[spend_amount_column] = spend_display[spend_amount_column].apply(lambda x: f"${x:,.2f}")
+
+    st.dataframe(spend_display, use_container_width=True)
 
 # =============================
 # INDIVIDUAL WORK LOG
