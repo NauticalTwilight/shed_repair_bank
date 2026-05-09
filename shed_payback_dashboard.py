@@ -141,10 +141,10 @@ def load_spend_data():
 
     try:
         return pd.read_csv(SPEND_GOOGLE_SHEET_CSV_URL)
-    except Exception as e:
+        except Exception:
         st.warning("Could not load Spend Repair BANK CSV link. Spend is currently being treated as $0.")
-        st.write(e)
         return pd.DataFrame()
+       
 
 
 def clean_money_column(series):
@@ -163,13 +163,12 @@ def find_spend_amount_column(spend_df):
 
     spend_df.columns = spend_df.columns.str.strip()
 
+    # Only use the exact Spend Amount column.
+    # Do NOT guess from other columns like money, cost, amount, etc.
     if SPEND_AMOUNT_COLUMN in spend_df.columns:
         return SPEND_AMOUNT_COLUMN
 
-    possible_columns = [
-        col for col in spend_df.columns
-        if "spend" in col.lower() and "amount" in col.lower()
-    ]
+    return None
 
     if possible_columns:
         return possible_columns[0]
@@ -272,6 +271,7 @@ else:
 # =============================
 
 total_spend = 0.0
+spend_amount_column = None
 
 if not spend_df.empty:
     spend_df.columns = spend_df.columns.str.strip()
@@ -285,10 +285,12 @@ if not spend_df.empty:
             errors="coerce"
         ).fillna(0)
 
+        # Only count rows where Spend Amount is greater than zero.
+        spend_df = spend_df[spend_df[spend_amount_column] > 0]
+
         total_spend = float(spend_df[spend_amount_column].sum())
     else:
-        st.warning("Spend form loaded, but I could not find a Spend Amount column.")
-        st.write(list(spend_df.columns))
+        st.warning("Spend Repair BANK sheet loaded, but it does not have an exact 'Spend Amount' column. Spend is being treated as $0.")
 
 # =============================
 # APPLY SPEND RESET LOGIC
