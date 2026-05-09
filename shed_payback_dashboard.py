@@ -26,7 +26,7 @@ GOOGLE_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ46p98f
 # IMPORTANT:
 # Paste the published CSV link for your new Spend Repair BANK response tab here.
 # If this is blank, spend will be treated as $0.
-SPEND_GOOGLE_SHEET_CSV_URL = ""
+SPEND_GOOGLE_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ46p98flCzt2nVUELnpXG65xFFmi8Nd8ruu9NqTtenHaQFgUDzVktmXplAF9yPC7_SL37ZvV2_3XhL/pub?gid=1126731422&single=true&output=csv"
 NAME_COLUMN = "Name"
 HOURS_COLUMN = "Hours worked per kid"
 WORK_COLUMN = "Work Description:"
