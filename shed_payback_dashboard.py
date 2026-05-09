@@ -21,12 +21,12 @@ st_autorefresh(interval=15000, key="dashboard_refresh")
 TOTAL_REPAIR_COST = 300
 HOURLY_RATE = 5
 
+# Original work/repair form response CSV
 GOOGLE_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ46p98flCzt2nVUELnpXG65xFFmi8Nd8ruu9NqTtenHaQFgUDzVktmXplAF9yPC7_SL37ZvV2_3XhL/pub?gid=430958332&single=true&output=csv"
 
-# IMPORTANT:
-# Paste the published CSV link for your new Spend Repair BANK response tab here.
-# If this is blank, spend will be treated as $0.
+# Spend Repair BANK form response CSV
 SPEND_GOOGLE_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ46p98flCzt2nVUELnpXG65xFFmi8Nd8ruu9NqTtenHaQFgUDzVktmXplAF9yPC7_SL37ZvV2_3XhL/pub?gid=1126731422&single=true&output=csv"
+
 NAME_COLUMN = "Name"
 HOURS_COLUMN = "Hours worked per kid"
 WORK_COLUMN = "Work Description:"
@@ -128,9 +128,8 @@ st.markdown("""
 def load_data():
     try:
         return pd.read_csv(GOOGLE_SHEET_CSV_URL)
-    except Exception as e:
-        st.error("Could not load Google Sheet CSV link.")
-        st.write(e)
+    except Exception:
+        st.error("Could not load the original work/repair Google Sheet CSV link.")
         return pd.DataFrame()
 
 
@@ -141,10 +140,9 @@ def load_spend_data():
 
     try:
         return pd.read_csv(SPEND_GOOGLE_SHEET_CSV_URL)
-        except Exception:
+    except Exception:
         st.warning("Could not load Spend Repair BANK CSV link. Spend is currently being treated as $0.")
         return pd.DataFrame()
-       
 
 
 def clean_money_column(series):
@@ -163,23 +161,11 @@ def find_spend_amount_column(spend_df):
 
     spend_df.columns = spend_df.columns.str.strip()
 
-    # Only use the exact Spend Amount column.
-    # Do NOT guess from other columns like money, cost, amount, etc.
+    # Safety rule:
+    # Only subtract spend if the sheet has this exact column.
+    # This prevents the spend sheet from accidentally wiping the dashboard.
     if SPEND_AMOUNT_COLUMN in spend_df.columns:
         return SPEND_AMOUNT_COLUMN
-
-    return None
-
-    if possible_columns:
-        return possible_columns[0]
-
-    possible_amount_columns = [
-        col for col in spend_df.columns
-        if "amount" in col.lower() or "money" in col.lower() or "cost" in col.lower()
-    ]
-
-    if possible_amount_columns:
-        return possible_amount_columns[0]
 
     return None
 
@@ -199,7 +185,7 @@ if not df.empty:
         if possible_name_columns:
             NAME_COLUMN = possible_name_columns[0]
         else:
-            st.error("Could not find the Name column.")
+            st.error("Could not find the Name column in the original work sheet.")
             st.write(list(df.columns))
             st.stop()
 
@@ -208,7 +194,7 @@ if not df.empty:
         if possible_hours_columns:
             HOURS_COLUMN = possible_hours_columns[0]
         else:
-            st.error("Could not find the Hours column.")
+            st.error("Could not find the Hours column in the original work sheet.")
             st.write(list(df.columns))
             st.stop()
 
@@ -285,10 +271,11 @@ if not spend_df.empty:
             errors="coerce"
         ).fillna(0)
 
-        # Only count rows where Spend Amount is greater than zero.
+        # Only count actual positive spend entries.
         spend_df = spend_df[spend_df[spend_amount_column] > 0]
 
         total_spend = float(spend_df[spend_amount_column].sum())
+
     else:
         st.warning("Spend Repair BANK sheet loaded, but it does not have an exact 'Spend Amount' column. Spend is being treated as $0.")
 
@@ -296,6 +283,8 @@ if not spend_df.empty:
 # APPLY SPEND RESET LOGIC
 # =============================
 
+# These are the dashboard-facing numbers.
+# The boys' historical work log and per-child totals remain untouched below.
 total_earned = max(raw_total_earned - total_spend, 0)
 display_total_repair_cost = max(TOTAL_REPAIR_COST - total_spend, 0)
 
