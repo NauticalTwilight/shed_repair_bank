@@ -468,22 +468,6 @@ else:
 
     st.dataframe(transaction_display, use_container_width=True)
 
-# =============================
-# SPEND REPAIR BANK LOG
-# =============================
-
-st.divider()
-st.header("💸 Spend Repair BANK Log")
-
-if spend_df.empty:
-    st.info("No spend entries yet, or the Spend CSV URL has not been added.")
-else:
-    spend_display = spend_df.sort_index(ascending=False).copy()
-
-    if spend_amount_column and spend_amount_column in spend_display.columns:
-        spend_display[spend_amount_column] = spend_display[spend_amount_column].apply(lambda x: f"${x:,.2f}")
-
-    st.dataframe(spend_display, use_container_width=True)
 
 # =============================
 # INDIVIDUAL WORK LOG
@@ -516,6 +500,23 @@ st.markdown(f"""
     <p>This amount is subtracted from both Money Earned and Total Repair Cost.</p>
 </div>
 """, unsafe_allow_html=True)
+
+# =============================
+# SPEND REPAIR BANK LOG
+# =============================
+
+st.divider()
+st.header("💸 Spend Repair BANK Log")
+
+if spend_df.empty:
+    st.info("No spend entries yet, or the Spend CSV URL has not been added.")
+else:
+    spend_display = spend_df.sort_index(ascending=False).copy()
+
+    if spend_amount_column and spend_amount_column in spend_display.columns:
+        spend_display[spend_amount_column] = spend_display[spend_amount_column].apply(lambda x: f"${x:,.2f}")
+
+    st.dataframe(spend_display, use_container_width=True)
 
 
 # =============================
